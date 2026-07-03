@@ -14271,7 +14271,7 @@ begin
   End;
 end;
 
-{****************************************************************}
+{*****************************************************************}
 procedure TALToggleButton.SetCheckedNoChange(const Value: Boolean);
 begin
   var LPrevOnChange := fOnChange;
