@@ -33,6 +33,11 @@ type
     Kind: TUsesItemKind;
     Text: AnsiString;            // The unit name, the compiler directive or the comment
     TrailingComment: AnsiString; // A comment located on the same line, after the unit name
+    TrailingComma: Boolean;      // A "," followed this item in the original source. The comma
+                                 // topology relative to the conditional compilation directives
+                                 // is preserved exactly as in the original source because the
+                                 // original source is the only one guaranteed to compile in
+                                 // every conditional branch
     Removed: Boolean;
     MovedFromInterface: Boolean; // The unit was moved from the interface uses clause to
                                  // the implementation uses clause (its removal was already
@@ -152,83 +157,47 @@ end;
 
 {***********************************************}
 function TUsesClause.GenerateSource: AnsiString;
-var LDepths: TArray<Integer>;
-    LDepth: Integer;
-    LFirstUnitIdx: Integer;
-    LLastUnitIdx: Integer;
-    LLastUncondUnitIdx: Integer;
-    LTrailingDirective: Boolean;
+var LLastIdx: Integer;
+    LUnitCount: Integer;
     LSemicolonDone: Boolean;
     LLine: AnsiString;
     LItem: TUsesItem;
     I: Integer;
 begin
 
-  // Compute the conditional compilation depth of every item
-  SetLength(LDepths, Items.Count);
-  LDepth := 0;
-  for I := 0 to Items.Count - 1 do begin
-    LItem := Items[I];
-    if (LItem.Kind = uikDirective) and (GetDirectiveDelta(LItem.Text) < 0) then dec(LDepth);
-    LDepths[I] := LDepth;
-    if (LItem.Kind = uikDirective) and (GetDirectiveDelta(LItem.Text) > 0) then inc(LDepth);
-  end;
-
-  // Locate the first unit, the last unit and the last unit
-  // that is not nested inside a conditional compilation block
-  LFirstUnitIdx := -1;
-  LLastUnitIdx := -1;
-  LLastUncondUnitIdx := -1;
-  for I := 0 to Items.Count - 1 do begin
-    LItem := Items[I];
-    if (LItem.Kind = uikUnit) and (not LItem.Removed) then begin
-      if LFirstUnitIdx < 0 then LFirstUnitIdx := I;
-      LLastUnitIdx := I;
-      if LDepths[I] = 0 then LLastUncondUnitIdx := I;
+  LLastIdx := -1;
+  LUnitCount := 0;
+  for I := 0 to Items.Count - 1 do
+    if not Items[I].Removed then begin
+      LLastIdx := I;
+      if Items[I].Kind = uikUnit then inc(LUnitCount);
     end;
-  end;
 
   // When no unit remains the whole clause is dropped. This is only
   // allowed when the clause does not contain any compiler directive
   // or comment (the caller must enforce it)
-  if LLastUnitIdx < 0 then begin
+  if LUnitCount = 0 then begin
     if HasDirectiveOrComment then raise Exception.Create('Cannot generate an empty uses clause that contains compiler directives or comments');
     exit('');
   end;
-
-  // Check if a compiler directive follows the last unconditional unit
-  LTrailingDirective := False;
-  if LLastUncondUnitIdx >= 0 then
-    for I := LLastUncondUnitIdx + 1 to Items.Count - 1 do
-      if Items[I].Kind = uikDirective then begin
-        LTrailingDirective := True;
-        break;
-      end;
 
   Result := 'uses' + #13#10;
   LSemicolonDone := False;
   for I := 0 to Items.Count - 1 do begin
     LItem := Items[I];
     if LItem.Removed then continue;
-    if LItem.Kind in [uikDirective, uikComment] then LLine := '  ' + LItem.Text
+    // A "//" comment cannot carry a trailing comma on the same line so
+    // the comma is emitted in front of it (same effective position)
+    if (LItem.Kind = uikComment) and LItem.TrailingComma and (ALPosA('//', LItem.Text) = 1) then LLine := '  , ' + LItem.Text
     else begin
-      if (LLastUncondUnitIdx >= 0) and (I < LLastUncondUnitIdx) then LLine := '  ' + LItem.Text + ','
-      else if I = LLastUncondUnitIdx then begin
-        if (I = LLastUnitIdx) and (not LTrailingDirective) then begin
-          LLine := '  ' + LItem.Text + ';';
-          LSemicolonDone := True;
-        end
-        else LLine := '  ' + LItem.Text;
-      end
-      else begin
-        // Units located after the last unconditional unit are all nested
-        // inside conditional compilation blocks. Use a leading comma so
-        // that the clause stays valid whatever branches are active
-        if I = LFirstUnitIdx then LLine := '  ' + LItem.Text
-        else LLine := '  , ' + LItem.Text;
-      end;
-      if LItem.TrailingComment <> '' then LLine := LLine + ' ' + LItem.TrailingComment;
+      LLine := '  ' + LItem.Text;
+      if LItem.TrailingComma then LLine := LLine + ',';
     end;
+    if (I = LLastIdx) and (LItem.Kind = uikUnit) and (not LItem.TrailingComma) then begin
+      LLine := LLine + ';';
+      LSemicolonDone := True;
+    end;
+    if (LItem.Kind = uikUnit) and (LItem.TrailingComment <> '') then LLine := LLine + ' ' + LItem.TrailingComment;
     Result := Result + LLine + #13#10;
   end;
   if not LSemicolonDone then Result := Result + '  ;' + #13#10;
@@ -333,8 +302,13 @@ begin
       inc(AIndex);
     end
 
-    // separator
-    else if C = ',' then inc(AIndex)
+    // separator: remember on which item the comma sits so that the
+    // original comma topology can be reproduced exactly
+    else if C = ',' then begin
+      if AClause.Items.Count = 0 then raise EUsesParseError.Create('Unexpected "," at the beginning of a uses clause');
+      AClause.Items.Last.TrailingComma := True;
+      inc(AIndex);
+    end
 
     // end of the clause
     else if C = ';' then begin
@@ -385,6 +359,7 @@ begin
       LName := ALCopyStr(ASource, AIndex, J - AIndex);
       AIndex := J;
       if ALSameTextA(LName, 'in') then raise EUsesParseError.Create('".dpr style" uses clauses (unit in ''filename'') are not supported');
+      if ALSameTextA(LName, 'uses') then raise EUsesParseError.Create('Duplicated "uses" keyword inside a uses clause (probably a conditional uses clause spanning several branches)');
       LItem := TUsesItem.Create;
       LItem.Kind := uikUnit;
       LItem.Text := LName;
@@ -492,6 +467,46 @@ begin
     end;
   end;
 
+end;
+
+{**********************************************************************}
+// When a unit reference is removed, exactly one separator comma must
+// disappear with it. The comma carried by the unit itself vanishes
+// automatically (a removed item is not emitted); otherwise the comma
+// that pairs the unit with its neighbor is located on a following item
+// (before the next unit) or on a previous item (up to and including
+// the previous unit). Returns the item whose trailing comma was
+// cleared (so that it can be restored when the removal is rejected)
+// or nil when no comma had to be cleared
+function ClearSeparatorComma(
+           const AClause: TUsesClause;
+           const AItem: TUsesItem): TUsesItem;
+var LOther: TUsesItem;
+    LIdx, I: Integer;
+begin
+  Result := nil;
+  if AItem.TrailingComma then exit; // it vanishes with the removed unit
+  LIdx := AClause.Items.IndexOf(AItem);
+  // forward, up to the next unit
+  for I := LIdx + 1 to AClause.Items.Count - 1 do begin
+    LOther := AClause.Items[I];
+    if LOther.Removed then continue;
+    if LOther.Kind = uikUnit then break;
+    if LOther.TrailingComma then begin
+      LOther.TrailingComma := False;
+      exit(LOther);
+    end;
+  end;
+  // backward, up to and including the previous unit
+  for I := LIdx - 1 downto 0 do begin
+    LOther := AClause.Items[I];
+    if LOther.Removed then continue;
+    if LOther.TrailingComma then begin
+      LOther.TrailingComma := False;
+      exit(LOther);
+    end;
+    if LOther.Kind = uikUnit then break;
+  end;
 end;
 
 {*******************************************************************}
@@ -668,16 +683,28 @@ begin
 end;
 
 {*************************************************}
+// Print the error lines of a build output (or the tail of the
+// output when no error line can be identified)
 procedure PrintBuildOutputTail(const AOutput: AnsiString);
 var LLines: TALStringListA;
-    I: Integer;
+    LCount, I: Integer;
 begin
   LLines := TALStringListA.Create;
   try
     LLines.Text := AOutput;
-    for I := Max(0, LLines.Count - 25) to LLines.Count - 1 do
-      if ALTrim(LLines[I]) <> '' then
-        Writeln('    ' + LLines[I]);
+    LCount := 0;
+    for I := 0 to LLines.Count - 1 do
+      if ((ALPosIgnoreCaseA('error', LLines[I]) > 0) or
+          (ALPosIgnoreCaseA('fatal', LLines[I]) > 0)) and
+         (ALPosA('Error(s)', LLines[I]) <= 0) then begin
+        Writeln('    ' + ALTrim(LLines[I]));
+        inc(LCount);
+        if LCount >= 20 then break;
+      end;
+    if LCount = 0 then
+      for I := Max(0, LLines.Count - 25) to LLines.Count - 1 do
+        if ALTrim(LLines[I]) <> '' then
+          Writeln('    ' + LLines[I]);
   finally
     ALFreeAndNil(LLines);
   end;
@@ -761,7 +788,9 @@ end;
 // Rebuild every selected configuration/platform pair. Returns False
 // (with the reason) as soon as one build fails or introduces a
 // warning that was not present in the baseline build
-function TestBuildAllPairs(out AReason: String): Boolean;
+function TestBuildAllPairs(
+           out AReason: String;
+           const APrintOutputOnFailure: Boolean = False): Boolean;
 var LWarnings: TALStringListA;
     LOutput: AnsiString;
     LNewWarning: AnsiString;
@@ -772,6 +801,7 @@ begin
       try
         if not RunMSBuild('Make', LConfig, LPlatform, LWarnings, LOutput) then begin
           AReason := 'build failed on ' + LConfig + '/' + LPlatform;
+          if APrintOutputOnFailure then PrintBuildOutputTail(LOutput);
           exit(False);
         end;
         LNewWarning := FirstNewWarning(GBaselineWarnings[PairKey(LConfig, LPlatform)], LWarnings);
@@ -978,10 +1008,11 @@ begin
       if LNormalizedCount > 0 then begin
         Writeln('Verifying that the normalization did not break the build ...');
         var LReason: String;
-        if not TestBuildAllPairs(LReason) then begin
+        if not TestBuildAllPairs(LReason, True{APrintOutputOnFailure}) then begin
           for var LSourceFile in LSourceFiles do
             if LSourceFile.Modified then ALSaveStringtoFile(LSourceFile.OriginalSource, LSourceFile.FilePath);
-          raise Exception.Create('The normalization of the uses clauses broke the build (' + LReason + '). All files have been restored.');
+          raise Exception.Create('The normalization of the uses clauses broke the build (' + LReason + '). ' +
+                                 'The compiler errors above show the file that could not be normalized. All files have been restored.');
         end;
       end;
       Writeln('');
@@ -1027,6 +1058,7 @@ begin
 
               // First try to remove the unit reference
               LItem.Removed := True;
+              var LClearedComma := ClearSeparatorComma(LClause, LItem);
               SaveSourceFile(LSourceFile);
               Write('  ' + LItem.Text + ' ... ');
               var LReason: String;
@@ -1035,6 +1067,7 @@ begin
                 continue;
               end;
               LItem.Removed := False;
+              if LClearedComma <> nil then LClearedComma.TrailingComma := True;
               SaveSourceFile(LSourceFile);
 
               // Then, for a unit of the interface uses clause, try to
@@ -1060,39 +1093,61 @@ begin
                 LMovedItem.MovedFromInterface := True;
                 var LExistingEndif: TUsesItem;
                 if Length(LGuardPath) = 0 then begin
-                  LImplClause.Items.Add(LMovedItem);
+                  // Insert at the very beginning of the clause: no comma is
+                  // needed in front of it whatever branches are active
+                  LMovedItem.TrailingComma := LImplClause.ActiveUnitCount > 0;
+                  LImplClause.Items.Insert(0, LMovedItem);
                   LAppendedItems.Add(LMovedItem);
                 end
                 else if LGuardBlocks.TryGetValue(LSignature, LExistingEndif) and
                         (LImplClause.Items.IndexOf(LExistingEndif) >= 0) then begin
-                  // Reuse the conditional block already created for this guard
-                  LImplClause.Items.Insert(LImplClause.Items.IndexOf(LExistingEndif), LMovedItem);
+                  // Reuse the conditional block already created for this
+                  // guard: insert just before its {$ENDIF}, replicating the
+                  // comma of the unit located just above
+                  var LInsertIdx := LImplClause.Items.IndexOf(LExistingEndif);
+                  LMovedItem.TrailingComma := False;
+                  for var K := LInsertIdx - 1 downto 0 do begin
+                    var LPrev := LImplClause.Items[K];
+                    if LPrev.Removed then continue;
+                    if LPrev.Kind = uikUnit then begin
+                      LMovedItem.TrailingComma := LPrev.TrailingComma;
+                      break;
+                    end;
+                    if LPrev.Kind = uikDirective then break;
+                  end;
+                  LImplClause.Items.Insert(LInsertIdx, LMovedItem);
                   LAppendedItems.Add(LMovedItem);
                 end
                 else begin
                   // Recreate the surrounding conditional compilation
-                  // directives in the implementation uses clause
+                  // directives at the very beginning of the clause
                   LCreatedBlock := True;
+                  LMovedItem.TrailingComma := LImplClause.ActiveUnitCount > 0;
+                  var LInsertIdx := 0;
                   for var LDirective in LGuardPath do begin
                     var LDirectiveItem := TUsesItem.Create;
                     LDirectiveItem.Kind := uikDirective;
                     LDirectiveItem.Text := LDirective;
-                    LImplClause.Items.Add(LDirectiveItem);
+                    LImplClause.Items.Insert(LInsertIdx, LDirectiveItem);
                     LAppendedItems.Add(LDirectiveItem);
+                    inc(LInsertIdx);
                   end;
-                  LImplClause.Items.Add(LMovedItem);
+                  LImplClause.Items.Insert(LInsertIdx, LMovedItem);
                   LAppendedItems.Add(LMovedItem);
+                  inc(LInsertIdx);
                   for var J := 1 to CountOpeningDirectives(LGuardPath) do begin
                     var LEndifItem := TUsesItem.Create;
                     LEndifItem.Kind := uikDirective;
                     LEndifItem.Text := '{$ENDIF}';
-                    LImplClause.Items.Add(LEndifItem);
+                    LImplClause.Items.Insert(LInsertIdx, LEndifItem);
                     LAppendedItems.Add(LEndifItem);
+                    inc(LInsertIdx);
                     if LFirstEndif = nil then LFirstEndif := LEndifItem;
                   end;
                 end;
 
                 LItem.Removed := True; // hide it in the interface uses clause
+                var LMoveClearedComma := ClearSeparatorComma(LClause, LItem);
                 SaveSourceFile(LSourceFile);
                 var LMoveReason: String;
                 if TestBuildAllPairs(LMoveReason) then begin
@@ -1101,6 +1156,7 @@ begin
                 end
                 else begin
                   LItem.Removed := False;
+                  if LMoveClearedComma <> nil then LMoveClearedComma.TrailingComma := True;
                   for var LAppendedItem in LAppendedItems do
                     LImplClause.Items.Remove(LAppendedItem); // also frees the item (OwnsObjects)
                   SaveSourceFile(LSourceFile);
