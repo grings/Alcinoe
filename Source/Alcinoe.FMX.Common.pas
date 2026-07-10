@@ -7159,7 +7159,7 @@ begin
     ALLog(
       'Screen correction factor '+
       '(' + ALFloatToStrW(LCorrection) + ') '+
-      'is within ±' + ALFloatToStrW(_ALScreenScaleCorrectionThreshold * 100) + '% threshold - skipping correction');
+      'is within ' + ALFloatToStrW(_ALScreenScaleCorrectionThreshold * 100) + '% threshold - skipping correction');
     {$ENDIF}
   end;
 

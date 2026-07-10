@@ -652,10 +652,8 @@ begin
       LMessageId := aPayload.Values[LMessageIdKey];
       if LMessageId <> '' then break;
     end;
-    {$IF defined(debug)}
-    if LMessageId = '' then
-      raise Exception.Create('google.message_id in notification message cannot be null');
-    {$endif}
+    // This method may also be called when the app is opened through a deep link,
+    // which does not contain any Firebase message ID. In that case, ignore it.
     if (LMessageId = '') then exit;
     if (FDeliveredMessageIDs.TryAdd(LMessageId,true)) then begin
       {$IF defined(debug)}
@@ -987,6 +985,27 @@ var LImp: procedure(); cdecl;
 begin
   var LJsonDoc := TALJSONDocumentW.create;
   try
+
+    //
+    // {
+    //   "custom_data": "xxx",
+    //   "google.c.sender.id": "449824444658",
+    //   "google.c.a.e": "1",
+    //   "aps": {
+    //     "alert": {
+    //       "title": "xxx",
+    //       "body": "xxx"
+    //     },
+    //     "mutable-content": 1
+    //   },
+    //   "gcm.message_id": "1783694444840875",
+    //   "google.c.fid": "dDpaaaa_2Ui5tjHwFk2BMd",
+    //   "fcm_options": {
+    //     "image": "http:\u002F\u002F..."
+    //   }
+    // }
+    //
+
     var LJsonStr := _NSDictionaryToJSON(didReceiveNotificationResponse.notification.request.content.userInfo);
     if LJsonStr <> '' then LJsonDoc.LoadFromJSONString(LJsonStr);
 
@@ -996,6 +1015,13 @@ begin
 
     // https://firebase.google.com/docs/cloud-messaging/ios/receive-messages#handle-messages-swizzling-disabled
     TFIRMessaging.OCClass.messaging.appDidReceiveMessage(didReceiveNotificationResponse.notification.request.content.userInfo);
+
+    var Ltitle := LJsonDoc.GetChildValuetext(['aps', 'alert', 'title'], '');
+    if Ltitle <> '' then LJsonDoc.SetChildValuetext(['notification', 'title'], Ltitle);
+    var Lbody := LJsonDoc.GetChildValuetext(['aps', 'alert', 'body'], '');
+    if Lbody <> '' then LJsonDoc.SetChildValuetext(['notification', 'body'], Lbody);
+    var LImage := LJsonDoc.GetChildValuetext(['fcm_options', 'image'], '');
+    if LImage <> '' then LJsonDoc.SetChildValuetext(['notification', 'image'], LImage);
 
     LJsonDoc.SetChildValueText('alcinoe.notification_clicked', '1');
     var LMessage := TPushRemoteNotificationMessage.Create(TPushNotificationData.Create(LJsonDoc.JSON));
@@ -1017,6 +1043,26 @@ var LImp: procedure(aOptions: UNNotificationPresentationOptions); cdecl;
 begin
   var LJsonDoc := TALJSONDocumentW.create;
   try
+
+    //
+    // {
+    //   "custom_data": "xxx",
+    //   "google.c.sender.id": "449824298558",
+    //   "google.c.a.e": "1",
+    //   "aps": {
+    //     "alert": {
+    //       "title": "xxx",
+    //       "body": "xxx"
+    //     },
+    //     "mutable-content": 1
+    //   },
+    //   "gcm.message_id": "1783697775460459",
+    //   "google.c.fid": "dDpT8d3_2Ui5tjHwFk2BMd",
+    //   "fcm_options": {
+    //     "image": "http:\/\/..."
+    //   }
+    // }
+    //
 
     var LJsonStr := _NSDictionaryToJSON(willPresentNotification.request.content.userInfo);
     if LJsonStr <> '' then LJsonDoc.LoadFromJSONString(LJsonStr);
@@ -1047,7 +1093,14 @@ begin
     end
     else begin
 
-      var LMessage := TPushRemoteNotificationMessage.Create(TPushNotificationData.Create(LJsonStr));
+      var Ltitle := LJsonDoc.GetChildValuetext(['aps', 'alert', 'title'], '');
+      if Ltitle <> '' then LJsonDoc.SetChildValuetext(['notification', 'title'], Ltitle);
+      var Lbody := LJsonDoc.GetChildValuetext(['aps', 'alert', 'body'], '');
+      if Lbody <> '' then LJsonDoc.SetChildValuetext(['notification', 'body'], Lbody);
+      var LImage := LJsonDoc.GetChildValuetext(['fcm_options', 'image'], '');
+      if LImage <> '' then LJsonDoc.SetChildValuetext(['notification', 'image'], LImage);
+
+      var LMessage := TPushRemoteNotificationMessage.Create(TPushNotificationData.Create(LJsonDoc.JSON));
       TMessageManager.DefaultManager.SendMessage(nil, LMessage);
 
       {$IFNDEF ALCompilerVersionSupported131}

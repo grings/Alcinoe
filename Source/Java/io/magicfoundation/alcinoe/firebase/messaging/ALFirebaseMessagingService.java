@@ -2,7 +2,6 @@ package io.magicfoundation.alcinoe.firebase.messaging;
 
 import java.util.Map;
 import org.json.JSONObject;
-import org.json.JSONArray;
 import androidx.lifecycle.MutableLiveData;
 import android.os.Handler;
 import android.os.Looper;
@@ -34,15 +33,21 @@ public class ALFirebaseMessagingService extends FirebaseMessagingService {
         
     try{
     
-      //init MapData
-      Map<String, String> MapData = remoteMessage.getData();
-    
-      //init jsonData
       JSONObject jsonData = new JSONObject();
-      for (Map.Entry<String, String> entry : MapData.entrySet()) {
+    
+      Map<String, String> mapData = remoteMessage.getData();
+      for (Map.Entry<String, String> entry : mapData.entrySet()) {
         jsonData.put(entry.getKey(), entry.getValue()); /* String */
       }    
-      jsonData.put("google.message_id", remoteMessage.getMessageId()); /* String */
+
+      RemoteMessage.Notification notification = remoteMessage.getNotification();
+      if (notification != null) {
+        if (notification.getTitle() != null) { jsonData.put("notification.title", notification.getTitle()); } /* String */
+        if (notification.getBody() != null) { jsonData.put("notification.body", notification.getBody()); } /* String */
+        if (notification.getImageUrl() != null) { jsonData.put("notification.image", notification.getImageUrl().toString()); } /* String */
+      }
+
+      if (remoteMessage.getMessageId() != null) { jsonData.put("google.message_id", remoteMessage.getMessageId()); } /* String */
       jsonData.put("google.sent_time", remoteMessage.getSentTime()); /* long */
       jsonData.put("google.ttl", remoteMessage.getTtl()); /* int */
              

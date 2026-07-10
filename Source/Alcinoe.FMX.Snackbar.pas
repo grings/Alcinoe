@@ -413,7 +413,7 @@ end;
 procedure TALSnackbar.ContainerMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
 begin
   FAutoDismissTimer.Resume;
-  If MilliSecondsBetween(FMouseDownDT, Now) <= 200 then CloseCurrent;
+  If MilliSecondsBetween(FMouseDownDT, Now) <= 200 then ActionButtonClick(self);
 end;
 
 {**********************************************}

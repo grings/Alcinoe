@@ -1,3 +1,21 @@
+## 07/10/2026
+
+- Added `Alcinoe.FMX.Analytics` unit with `TALAnalytics`, a singleton wrapper 
+  around Google Firebase Analytics (Android and iOS):
+  - `trackEvent`
+  - `TrackScreenView`
+  - `SetUserID`
+- Updated `TALFirebaseMessaging` (`Alcinoe.FMX.Firebase.Messaging`):
+  - the notification title, body and image are now exposed in the message 
+    payload under the flat keys `notification.title`, `notification.body` and 
+    `notification.image` on both platforms — on iOS they are extracted from 
+    `aps.alert` and `fcm_options.image` (foreground presentation and 
+    notification click), on Android from `RemoteMessage.getNotification()` in 
+    `ALFirebaseMessagingService.java`
+- Updated `TALSnackbar` (`Alcinoe.FMX.Snackbar`): a quick tap on the snackbar 
+  container now invokes the action callback (like clicking the action button) 
+  instead of just dismissing the snackbar
+
 ## 06/20/2026
 
 - Added `Alcinoe.Handlebars` unit with `TALHandlebars`, a native Delphi 
