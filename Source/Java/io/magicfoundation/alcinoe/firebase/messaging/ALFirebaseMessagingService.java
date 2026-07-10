@@ -34,7 +34,7 @@ public class ALFirebaseMessagingService extends FirebaseMessagingService {
     try{
     
       JSONObject jsonData = new JSONObject();
-    
+
       Map<String, String> mapData = remoteMessage.getData();
       for (Map.Entry<String, String> entry : mapData.entrySet()) {
         jsonData.put(entry.getKey(), entry.getValue()); /* String */

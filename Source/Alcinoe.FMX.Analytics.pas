@@ -64,7 +64,7 @@ uses
   // information needed for these features to function properly.
   Alcinoe.iOSApi.AdSupport, // UsesCleaner:keep
   Alcinoe.FMX.Firebase.Core,
-  Alcinoe.iOSapi.FirebaseAnalytics,
+  Alcinoe.iOSApi.FirebaseAnalytics,
   {$ENDIF}
   Alcinoe.StringUtils,
   Alcinoe.Common;
@@ -166,19 +166,14 @@ begin
 
   {$REGION 'ios'}
   {$IF defined(ios)}
-  var LObjects: array of pointer;
-  var LForKeys: array of pointer;
-  Setlength(LForKeys, length(AEventValues));
-  Setlength(LObjects, length(AEventValues));
-  for var I := Low(AEventValues) to High(AEventValues) do begin
-    LForKeys[i] := (StrToNSStr(AEventValues[i].name) as ILocalObject).GetObjectID;
-    LObjects[i] := (StrToNSStr(AEventValues[i].value) as ILocalObject).GetObjectID;
+  var LParameters := TNSMutableDictionary.Create;
+  try
+    for var I := Low(AEventValues) to High(AEventValues) do
+      LParameters.setObject(StringToID(AEventValues[i].value), StringToID(AEventValues[i].name));
+    TFIRAnalytics.OCClass.logEventWithName(StrToNsStr(AEventName), LParameters);
+  finally
+    LParameters.release;
   end;
-  var LParameters := TNSDictionary.Wrap(
-                       TNSDictionary.OCClass.dictionaryWithObjects(
-                         TNSArray.Wrap(TNSArray.OCClass.arrayWithObjects(@LObjects[0], Length(LObjects))),  // objects: NSArray;
-                         TNSArray.Wrap(TNSArray.OCClass.arrayWithObjects(@LForKeys[0], Length(LForKeys))))); // forKeys: NSArray
-  TFIRAnalytics.OCClass.logEventWithName(StrToNsStr(AEventName), LParameters);
   {$ENDIF}
   {$ENDREGION}
 

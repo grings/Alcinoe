@@ -1,7 +1,7 @@
 //
 // Made from firebase-messaging 10.12.0
 //
-unit Alcinoe.iOSapi.FirebaseAnalytics;
+unit Alcinoe.iOSApi.FirebaseAnalytics;
 
 interface
 
