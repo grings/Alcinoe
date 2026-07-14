@@ -82,6 +82,23 @@ feeds, chats, or news streams.
   <img src="https://github.com/MagicFoundation/Alcinoe/blob/master/References/DocImages/empty.png?raw=true" width="25" />
   <a href="https://testflight.apple.com/join/VQnj4KsU"><img src="https://github.com/MagicFoundation/Alcinoe/blob/master/References/DocImages/alfmxdynamiclistboxdemoappstore.png?raw=true" alt="Alcinoe Dynamic ListBox Demo" /></a>
 </p>
+
+#### RockQuest ####
+
+RockQuest is a treasure-hunting app crafted in Delphi using the 
+Alcinoe framework, offering a playful, modern, and responsive 
+way to paint, hide, and discover rocks. Leveraging Alcinoe’s advanced 
+UI controls and optimized performance capabilities, RockQuest delivers 
+a smooth and engaging experience that turns every walk into an 
+adventure and every painted rock into a story waiting to be found.
+
+<p align="left">
+  <a href="https://www.youtube.com/shorts/Rtx9pzl9DOs"><img src="https://github.com/MagicFoundation/Alcinoe/blob/master/References/DocImages/youtuberockquest.jpg?raw=true" alt="RockQuest App" width="160" style="width:160px;" /></a>
+  <img src="https://github.com/MagicFoundation/Alcinoe/blob/master/References/DocImages/empty.png?raw=true" width="25" />
+  <a href="https://play.google.com/store/apps/details?id=org.rockquest.app"><img src="https://github.com/MagicFoundation/Alcinoe/blob/master/References/DocImages/rockquestgoogleplay.png?raw=true" alt="RockQuest App" /></a>
+  <img src="https://github.com/MagicFoundation/Alcinoe/blob/master/References/DocImages/empty.png?raw=true" width="25" />
+  <a href="https://apps.apple.com/us/app/rockquest/id6744269098"><img src="https://github.com/MagicFoundation/Alcinoe/blob/master/References/DocImages/rockquestappstore.png?raw=true" alt="RockQuest App" /></a>
+</p>
   
 #### KisKis ####
 
